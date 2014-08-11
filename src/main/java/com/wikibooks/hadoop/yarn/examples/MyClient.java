@@ -49,9 +49,9 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 /**
- * Client for Distributed Shell application submission to YARN.
+ * Client for HelloYarn submission to YARN.
  *
- * <p> The distributed shell client allows an application master to be launched that in turn would run
+ * <p> This client allows an application master to be launched that in turn would run
  * the provided shell command on a set of containers. </p>
  *
  * <p>This client is meant to act as an example on how to write yarn-based applications. </p>
@@ -66,12 +66,12 @@ import java.util.*;
  * and application name, the priority assigned to the application and the queue
  * to which this application needs to be assigned. In addition to this, the {@link org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext}
  * also defines the {@link org.apache.hadoop.yarn.api.records.ContainerLaunchContext} which describes the <code>Container</code> with which
- * the {@link com.wikibooks.hadoop.yarn.distributedshell.ApplicationMaster} is launched. </p>
+ * the {@link com.wikibooks.hadoop.yarn.examples.MyApplicationMaster} is launched. </p>
  *
  * <p> The {@link org.apache.hadoop.yarn.api.records.ContainerLaunchContext} in this scenario defines the resources to be allocated for the
- * {@link com.wikibooks.hadoop.yarn.distributedshell.ApplicationMaster}'s container, the local resources (jars, configuration files) to be made available
- * and the environment to be set for the {@link com.wikibooks.hadoop.yarn.distributedshell.ApplicationMaster} and the commands to be executed to run the
- * {@link com.wikibooks.hadoop.yarn.distributedshell.ApplicationMaster}. <p>
+ * {@link com.wikibooks.hadoop.yarn.examples.MyApplicationMaster}'s container, the local resources (jars, configuration files) to be made available
+ * and the environment to be set for the {@link com.wikibooks.hadoop.yarn.examples.MyApplicationMaster} and the commands to be executed to run the
+ * {@link com.wikibooks.hadoop.yarn.examples.MyApplicationMaster}. <p>
  *
  * <p> Using the {@link org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext}, the client submits the application to the
  * <code>ResourceManager</code> and then monitors the application by requesting the <code>ResourceManager</code>
@@ -116,9 +116,6 @@ public class MyClient {
 
   // ApplicationMaster jar file
   private String appMasterJarPath = "";
-
-  // Args to be passed to the shell command
-  private String[] shellArgs = new String[] {};
 
   // Container priority
   private int requestPriority = 0;
