@@ -52,7 +52,7 @@ import java.util.*;
  * Client for HelloYarn submission to YARN.
  *
  * <p> This client allows an application master to be launched that in turn would run
- * the provided shell command on a set of containers. </p>
+ * the provided the HelloYarn on a set of containers. </p>
  *
  * <p>This client is meant to act as an example on how to write yarn-based applications. </p>
  *
@@ -120,13 +120,13 @@ public class MyClient {
   // Container priority
   private int requestPriority = 0;
 
-  // Amt of memory to request for container in which shell script will be executed
+  // Amt of memory to request for container in which the HelloYarn will be executed
   private int containerMemory = 10;
 
-  // Amt. of virtual cores to request for container in which shell script will be executed
+  // Amt. of virtual cores to request for container in which the HelloYarn will be executed
   private int containerVirtualCores = 1;
 
-  // No. of containers in which the shell script needs to be executed
+  // No. of containers in which the HelloYarn needs to be executed
   private int numContainers = 1;
 
   // log4j.properties file
@@ -163,9 +163,9 @@ public class MyClient {
     opts.addOption("master_memory", true, "Amount of memory in MB to be requested to run the application master");
     opts.addOption("master_vcores", true, "Amount of virtual cores to be requested to run the application master");
     opts.addOption("jar", true, "Jar file containing the application master");
-    opts.addOption("container_memory", true, "Amount of memory in MB to be requested to run the shell command");
-    opts.addOption("container_vcores", true, "Amount of virtual cores to be requested to run the shell command");
-    opts.addOption("num_containers", true, "No. of containers on which the shell command needs to be executed");
+    opts.addOption("container_memory", true, "Amount of memory in MB to be requested to run the HelloYarn");
+    opts.addOption("container_vcores", true, "Amount of virtual cores to be requested to run the HelloYarn");
+    opts.addOption("num_containers", true, "No. of containers on which the HelloYarn needs to be executed");
     opts.addOption("log_properties", true, "log4j.properties file");
     opts.addOption("keep_containers_across_application_attempts", false,
         "Flag to indicate whether to keep containers across application attempts." +
