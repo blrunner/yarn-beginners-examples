@@ -43,24 +43,4 @@ public class HelloYarn {
     HelloYarn helloYarn = new HelloYarn();
     helloYarn.printMemoryStats();
   }
-
-
-
-//  private void run(String[] args) {
-//    System.out.println("Classpath in the environment: " + System.getenv("CLASSPATH"));
-//    System.out.println("Classpath in the local resource:");
-//    ClassLoader cl = ClassLoader.getSystemClassLoader();
-//    if (cl instanceof URLClassLoader) {
-//      for (URL url : ((URLClassLoader)cl).getURLs()) {
-//        System.out.println(url);
-//      }
-//    }
-//  }
-//
-//  public static void main(String[] args) {
-//    System.out.println("Running HelloYarn");
-//    new HelloYarn().run(args);
-//    System.out.println("Finished HelloYarn");
-//  }
-
 }
