@@ -144,9 +144,7 @@ public class MyClient {
    *
    */
   public MyClient() throws Exception  {
-    yarnClient = YarnClient.createYarnClient();
-    this.conf = new YarnConfiguration();
-    yarnClient.init(conf);
+    createYarnClient();
     opts = new Options();
     opts.addOption("appname", true, "Application Name. Default value - HelloYarn");
     opts.addOption("priority", true, "Application Priority. Default 0");
@@ -166,7 +164,12 @@ public class MyClient {
             " the new application attempt ");
     opts.addOption("debug", false, "Dump out debug information");
     opts.addOption("help", false, "Print usage");
+  }
 
+  private void createYarnClient() {
+    yarnClient = YarnClient.createYarnClient();
+    this.conf = new YarnConfiguration();
+    yarnClient.init(conf);
   }
 
   /**
