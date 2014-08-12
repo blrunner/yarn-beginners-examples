@@ -85,9 +85,6 @@ public class MyClient {
   // Hardcoded path to custom log_properties
   private static final String log4jPath = "log4j.properties";
 
-  // Main class to invoke application master
-  private final String appMasterMainClass;
-
   // Start time for client
   private final long clientStartTime = System.currentTimeMillis();
 
@@ -143,17 +140,12 @@ public class MyClient {
   private Options opts;
 
   /**
+   * Constructor
+   *
    */
-  public MyClient(Configuration conf) throws Exception  {
-    this(
-        "com.wikibooks.hadoop.yarn.examples.MyApplicationMaster",
-        conf);
-  }
-
-  MyClient(String appMasterMainClass, Configuration conf) {
-    this.conf = conf;
-    this.appMasterMainClass = appMasterMainClass;
+  public MyClient() throws Exception  {
     yarnClient = YarnClient.createYarnClient();
+    this.conf = new YarnConfiguration();
     yarnClient.init(conf);
     opts = new Options();
     opts.addOption("appname", true, "Application Name. Default value - HelloYarn");
@@ -175,43 +167,6 @@ public class MyClient {
     opts.addOption("debug", false, "Dump out debug information");
     opts.addOption("help", false, "Print usage");
 
-  }
-
-  /**
-   */
-  public MyClient() throws Exception  {
-    this(new YarnConfiguration());
-  }
-
-  /**
-   * @param args Command line arguments
-   */
-  public static void main(String[] args) {
-    boolean result = false;
-    try {
-      MyClient client = new MyClient();
-      LOG.info("Initializing Client");
-      try {
-        boolean doRun = client.init(args);
-        if (!doRun) {
-          System.exit(0);
-        }
-      } catch (IllegalArgumentException e) {
-        System.err.println(e.getLocalizedMessage());
-        client.printUsage();
-        System.exit(-1);
-      }
-      result = client.run();
-    } catch (Throwable t) {
-      LOG.fatal("Error running CLient", t);
-      System.exit(1);
-    }
-    if (result) {
-      LOG.info("Application completed successfully");
-      System.exit(0);
-    }
-    LOG.error("Application failed to complete successfully");
-    System.exit(2);
   }
 
   /**
@@ -453,7 +408,7 @@ public class MyClient {
     // Set Xmx based on am memory size
     vargs.add("-Xmx" + amMemory + "m");
     // Set class name
-    vargs.add(appMasterMainClass);
+    vargs.add("com.wikibooks.hadoop.yarn.examples.MyApplicationMaster");
     // Set params for Application Master
     vargs.add("--container_memory " + String.valueOf(containerMemory));
     vargs.add("--container_vcores " + String.valueOf(containerVirtualCores));
@@ -635,5 +590,36 @@ public class MyClient {
             LocalResourceType.FILE, LocalResourceVisibility.APPLICATION,
             scFileStatus.getLen(), scFileStatus.getModificationTime());
     localResources.put(fileDstPath, scRsrc);
+  }
+
+  /**
+   * @param args Command line arguments
+   */
+  public static void main(String[] args) {
+    boolean result = false;
+    try {
+      MyClient client = new MyClient();
+      LOG.info("Initializing Client");
+      try {
+        boolean doRun = client.init(args);
+        if (!doRun) {
+          System.exit(0);
+        }
+      } catch (IllegalArgumentException e) {
+        System.err.println(e.getLocalizedMessage());
+        client.printUsage();
+        System.exit(-1);
+      }
+      result = client.run();
+    } catch (Throwable t) {
+      LOG.fatal("Error running CLient", t);
+      System.exit(1);
+    }
+    if (result) {
+      LOG.info("Application completed successfully");
+      System.exit(0);
+    }
+    LOG.error("Application failed to complete successfully");
+    System.exit(2);
   }
 }

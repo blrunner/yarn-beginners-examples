@@ -9,6 +9,7 @@ cp target/yarn-examples-1.0-SNAPSHOT.jar  $HADOOP_HOME/share/hadoop/yarn/lib/
 
 ## Usage ##
 ```
+cd $HADOOP_HOME
 hadoop jar share/hadoop/yarn/lib/yarn-examples-1.0-SNAPSHOT.jar com.wikibooks.hadoop.yarn.examples.MyClient
 
 usage: Client
@@ -55,6 +56,7 @@ usage: Client
 
 ## Example ##
 ```
+cd $HADOOP_HOME
 $HADOOP_HOME/bin/yarn jar share/hadoop/yarn/lib/yarn-examples-1.0-SNAPSHOT.jar com.wikibooks.hadoop.yarn.examples.MyClient -jar share/hadoop/yarn/lib/yarn-examples-1.0-SNAPSHOT.jar -num_containers=1
 ```
 
