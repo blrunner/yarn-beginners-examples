@@ -145,6 +145,16 @@ public class MyClient {
    */
   public MyClient() throws Exception  {
     createYarnClient();
+    initOptions();
+  }
+
+  private void createYarnClient() {
+    yarnClient = YarnClient.createYarnClient();
+    this.conf = new YarnConfiguration();
+    yarnClient.init(conf);
+  }
+
+  private void initOptions() {
     opts = new Options();
     opts.addOption("appname", true, "Application Name. Default value - HelloYarn");
     opts.addOption("priority", true, "Application Priority. Default 0");
@@ -166,11 +176,6 @@ public class MyClient {
     opts.addOption("help", false, "Print usage");
   }
 
-  private void createYarnClient() {
-    yarnClient = YarnClient.createYarnClient();
-    this.conf = new YarnConfiguration();
-    yarnClient.init(conf);
-  }
 
   /**
    * Helper function to print out usage
@@ -274,6 +279,7 @@ public class MyClient {
 
     List<NodeReport> clusterNodeReports = yarnClient.getNodeReports(
         NodeState.RUNNING);
+
     LOG.info("Got Cluster node info from ASM");
     for (NodeReport node : clusterNodeReports) {
       LOG.info("Got node report from ASM for"
@@ -304,11 +310,6 @@ public class MyClient {
     YarnClientApplication app = yarnClient.createApplication();
     GetNewApplicationResponse appResponse = app.getNewApplicationResponse();
 
-    // TODO get min/max resource capabilities from RM and change memory ask if needed
-    // If we do not have min/max, we may not be able to correctly request
-    // the required resources from the RM for the app master
-    // Memory ask has to be a multiple of min and less than max.
-    // Dump out information about cluster capability as seen by the resource manager
     int maxMem = appResponse.getMaximumResourceCapability().getMemory();
     LOG.info("Max mem capabililty of resources in this cluster " + maxMem);
 
@@ -337,6 +338,38 @@ public class MyClient {
     appContext.setKeepContainersAcrossApplicationAttempts(keepContainers);
     appContext.setApplicationName(appName);
 
+    // Set up resource type requirements
+    // For now, both memory and vcores are supported, so we set memory and
+    // vcores requirements
+    Resource capability = Records.newRecord(Resource.class);
+    capability.setMemory(amMemory);
+    capability.setVirtualCores(amVCores);
+    appContext.setResource(capability);
+
+    // Set the priority for the application master
+    Priority pri = Records.newRecord(Priority.class);
+    pri.setPriority(amPriority);
+    appContext.setPriority(pri);
+
+    // Set the queue to which this application is to be submitted in the RM
+    appContext.setQueue(amQueue);
+
+    // Set the ContainerLaunchContext to describe the Container ith which the ApplicationMaster is launched.
+    appContext.setAMContainerSpec(getAMContainerSpec(appId.getId()));
+
+    // Submit the application to the applications manager
+    // SubmitApplicationResponse submitResp = applicationsManager.submitApplication(appRequest);
+    // Ignore the response as either a valid response object is returned on success
+    // or an exception thrown to denote some form of a failure
+    LOG.info("Submitting application to ASM");
+
+    yarnClient.submitApplication(appContext);
+
+    // Monitor the application
+    return monitorApplication(appId);
+  }
+
+  private ContainerLaunchContext getAMContainerSpec(int appId) throws IOException, YarnException {
     // Set up the container launch context for the application master
     ContainerLaunchContext amContainer = Records.newRecord(ContainerLaunchContext.class);
 
@@ -349,7 +382,7 @@ public class MyClient {
     // Copy the application master jar to the filesystem
     // Create a local resource to point to the destination jar path
     FileSystem fs = FileSystem.get(conf);
-    addToLocalResources(fs, appMasterJarPath, Constants.AM_JAR_NAME, appId.getId(),
+    addToLocalResources(fs, appMasterJarPath, Constants.AM_JAR_NAME, appId,
         localResources, null);
 
     // Set local resource info into app master container launch context
@@ -396,7 +429,7 @@ public class MyClient {
 
     // Set the log4j properties if needed
     if (!log4jPropFile.isEmpty()) {
-      addToLocalResources(fs, log4jPropFile, log4jPath, appId.getId(),
+      addToLocalResources(fs, log4jPropFile, log4jPath, appId,
           localResources, null);
     }
 
@@ -436,14 +469,6 @@ public class MyClient {
     commands.add(command.toString());
     amContainer.setCommands(commands);
 
-    // Set up resource type requirements
-    // For now, both memory and vcores are supported, so we set memory and
-    // vcores requirements
-    Resource capability = Records.newRecord(Resource.class);
-    capability.setMemory(amMemory);
-    capability.setVirtualCores(amVCores);
-    appContext.setResource(capability);
-
     // Setup security tokens
     if (UserGroupInformation.isSecurityEnabled()) {
       Credentials credentials = new Credentials();
@@ -467,27 +492,34 @@ public class MyClient {
       amContainer.setTokens(fsTokens);
     }
 
-    appContext.setAMContainerSpec(amContainer);
+    return amContainer;
+  }
 
-    // Set the priority for the application master
-    Priority pri = Records.newRecord(Priority.class);
-    pri.setPriority(amPriority);
-    appContext.setPriority(pri);
-
-    // Set the queue to which this application is to be submitted in the RM
-    appContext.setQueue(amQueue);
-
-    // Submit the application to the applications manager
-    // SubmitApplicationResponse submitResp = applicationsManager.submitApplication(appRequest);
-    // Ignore the response as either a valid response object is returned on success
-    // or an exception thrown to denote some form of a failure
-    LOG.info("Submitting application to ASM");
-
-    yarnClient.submitApplication(appContext);
-
-    // Monitor the application
-    return monitorApplication(appId);
-
+  private void addToLocalResources(FileSystem fs, String fileSrcPath,
+                                   String fileDstPath, int appId, Map<String, LocalResource> localResources,
+                                   String resources) throws IOException {
+    String suffix = appName + "/" + appId + "/" + fileDstPath;
+    Path dst =
+        new Path(fs.getHomeDirectory(), suffix);
+    if (fileSrcPath == null) {
+      FSDataOutputStream ostream = null;
+      try {
+        ostream = FileSystem
+            .create(fs, dst, new FsPermission((short) 0710));
+        ostream.writeUTF(resources);
+      } finally {
+        IOUtils.closeQuietly(ostream);
+      }
+    } else {
+      fs.copyFromLocalFile(new Path(fileSrcPath), dst);
+    }
+    FileStatus scFileStatus = fs.getFileStatus(dst);
+    LocalResource scRsrc =
+        LocalResource.newInstance(
+            ConverterUtils.getYarnUrlFromURI(dst.toUri()),
+            LocalResourceType.FILE, LocalResourceVisibility.APPLICATION,
+            scFileStatus.getLen(), scFileStatus.getModificationTime());
+    localResources.put(fileDstPath, scRsrc);
   }
 
   /**
@@ -568,32 +600,6 @@ public class MyClient {
     yarnClient.killApplication(appId);
   }
 
-  private void addToLocalResources(FileSystem fs, String fileSrcPath,
-                                   String fileDstPath, int appId, Map<String, LocalResource> localResources,
-                                   String resources) throws IOException {
-    String suffix = appName + "/" + appId + "/" + fileDstPath;
-    Path dst =
-        new Path(fs.getHomeDirectory(), suffix);
-    if (fileSrcPath == null) {
-      FSDataOutputStream ostream = null;
-      try {
-        ostream = FileSystem
-            .create(fs, dst, new FsPermission((short) 0710));
-        ostream.writeUTF(resources);
-      } finally {
-        IOUtils.closeQuietly(ostream);
-      }
-    } else {
-      fs.copyFromLocalFile(new Path(fileSrcPath), dst);
-    }
-    FileStatus scFileStatus = fs.getFileStatus(dst);
-    LocalResource scRsrc =
-        LocalResource.newInstance(
-            ConverterUtils.getYarnUrlFromURI(dst.toUri()),
-            LocalResourceType.FILE, LocalResourceVisibility.APPLICATION,
-            scFileStatus.getLen(), scFileStatus.getModificationTime());
-    localResources.put(fileDstPath, scRsrc);
-  }
 
   /**
    * @param args Command line arguments
