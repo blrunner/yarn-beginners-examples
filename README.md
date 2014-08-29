@@ -21,21 +21,9 @@ usage: Client
  -container_vcores <arg>                        Amount of virtual cores to
                                                 be requested to run the
                                                 shell command
- -debug                                         Dump out debug information
  -help                                          Print usage
  -jar <arg>                                     Jar file containing the
                                                 application master
- -keep_containers_across_application_attempts   Flag to indicate whether
-                                                to keep containers across
-                                                application attempts. If
-                                                the flag is true, running
-                                                containers will not be
-                                                killed when application
-                                                attempt fails and these
-                                                containers will be
-                                                retrieved by the new
-                                                application attempt
- -log_properties <arg>                          log4j.properties file
  -master_memory <arg>                           Amount of memory in MB to
                                                 be requested to run the
                                                 application master

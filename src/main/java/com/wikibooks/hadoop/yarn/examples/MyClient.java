@@ -18,7 +18,6 @@
 
 package com.wikibooks.hadoop.yarn.examples;
 
-import com.wikibooks.hadoop.yarn.common.Log4jPropertyHelper;
 import org.apache.commons.cli.*;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.logging.Log;
@@ -82,14 +81,8 @@ import java.util.*;
 public class MyClient {
   private static final Log LOG = LogFactory.getLog(MyClient.class);
 
-  // Hardcoded path to custom log_properties
-  private static final String log4jPath = "log4j.properties";
-
   // Start time for client
   private final long clientStartTime = System.currentTimeMillis();
-
-  // Debug flag
-  boolean debugFlag = false;
 
   // Configuration
   private Configuration conf;
@@ -126,15 +119,8 @@ public class MyClient {
   // No. of containers in which the HelloYarn needs to be executed
   private int numContainers = 1;
 
-  // log4j.properties file
-  // if available, add to local resources and set into classpath
-  private String log4jPropFile = "";
-
   // Timeout threshold for client. Kill app after time interval expires.
   private long clientTimeout = 600000;
-
-  // flag to indicate whether to keep containers across application attempts.
-  private boolean keepContainers = false;
 
   // Command line options
   private Options opts;
@@ -166,13 +152,6 @@ public class MyClient {
     opts.addOption("container_memory", true, "Amount of memory in MB to be requested to run the HelloYarn");
     opts.addOption("container_vcores", true, "Amount of virtual cores to be requested to run the HelloYarn");
     opts.addOption("num_containers", true, "No. of containers on which the HelloYarn needs to be executed");
-    opts.addOption("log_properties", true, "log4j.properties file");
-    opts.addOption("keep_containers_across_application_attempts", false,
-        "Flag to indicate whether to keep containers across application attempts." +
-            " If the flag is true, running containers will not be killed when" +
-            " application attempt fails and these containers will be retrieved by" +
-            " the new application attempt ");
-    opts.addOption("debug", false, "Dump out debug information");
     opts.addOption("help", false, "Print usage");
   }
 
@@ -198,28 +177,9 @@ public class MyClient {
       throw new IllegalArgumentException("No args specified for client to initialize");
     }
 
-    if (cliParser.hasOption("log_properties")) {
-      String log4jPath = cliParser.getOptionValue("log_properties");
-      try {
-        Log4jPropertyHelper.updateLog4jConfiguration(MyClient.class, log4jPath);
-      } catch (Exception e) {
-        LOG.warn("Can not set up custom log4j properties. " + e);
-      }
-    }
-
     if (cliParser.hasOption("help")) {
       printUsage();
       return false;
-    }
-
-    if (cliParser.hasOption("debug")) {
-      debugFlag = true;
-
-    }
-
-    if (cliParser.hasOption("keep_containers_across_application_attempts")) {
-      LOG.info("keep_containers_across_application_attempts");
-      keepContainers = true;
     }
 
     appName = cliParser.getOptionValue("appname", "HelloYarn");
@@ -256,8 +216,6 @@ public class MyClient {
     }
 
     clientTimeout = Integer.parseInt(cliParser.getOptionValue("timeout", "600000"));
-
-    log4jPropFile = cliParser.getOptionValue("log_properties", "");
 
     return true;
   }
@@ -335,7 +293,6 @@ public class MyClient {
     ApplicationSubmissionContext appContext = app.getApplicationSubmissionContext();
     ApplicationId appId = appContext.getApplicationId();
 
-    appContext.setKeepContainersAcrossApplicationAttempts(keepContainers);
     appContext.setApplicationName(appName);
 
     // Set up resource type requirements
@@ -373,6 +330,8 @@ public class MyClient {
     // Set up the container launch context for the application master
     ContainerLaunchContext amContainer = Records.newRecord(ContainerLaunchContext.class);
 
+    FileSystem fs = FileSystem.get(conf);
+
     // set local resources for the application master
     // local files or archives as needed
     // In this scenario, the jar file for the application master is part of the local resources
@@ -381,7 +340,6 @@ public class MyClient {
     LOG.info("Copy App Master jar from local filesystem and add to local environment");
     // Copy the application master jar to the filesystem
     // Create a local resource to point to the destination jar path
-    FileSystem fs = FileSystem.get(conf);
     addToLocalResources(fs, appMasterJarPath, Constants.AM_JAR_NAME, appId,
         localResources, null);
 
@@ -390,50 +348,7 @@ public class MyClient {
 
     // Set the env variables to be setup in the env where the application master will be run
     LOG.info("Set the environment for the application master");
-    Map<String, String> env = new HashMap<String, String>();
-
-    // Set ApplicationMaster jar file
-    LocalResource appJarResource = localResources.get(Constants.AM_JAR_NAME);
-    Path hdfsAppJarPath = new Path(fs.getHomeDirectory(), appJarResource.getResource().getFile());
-    FileStatus hdfsAppJarStatus = fs.getFileStatus(hdfsAppJarPath);
-    long hdfsAppJarLength = hdfsAppJarStatus.getLen();
-    long hdfsAppJarTimestamp = hdfsAppJarStatus.getModificationTime();
-
-    env.put(Constants.AM_JAR_PATH, hdfsAppJarPath.toString());
-    env.put(Constants.AM_JAR_TIMESTAMP, Long.toString(hdfsAppJarTimestamp));
-    env.put(Constants.AM_JAR_LENGTH, Long.toString(hdfsAppJarLength));
-
-    // Add AppMaster.jar location to classpath
-    // At some point we should not be required to add
-    // the hadoop specific classpaths to the env.
-    // It should be provided out of the box.
-    // For now setting all required classpaths including
-    // the classpath to "." for the application jar
-    StringBuilder classPathEnv = new StringBuilder(Environment.CLASSPATH.$$())
-        .append(ApplicationConstants.CLASS_PATH_SEPARATOR).append("./*");
-    for (String c : conf.getStrings(
-        YarnConfiguration.YARN_APPLICATION_CLASSPATH,
-        YarnConfiguration.DEFAULT_YARN_CROSS_PLATFORM_APPLICATION_CLASSPATH)) {
-      classPathEnv.append(ApplicationConstants.CLASS_PATH_SEPARATOR);
-      classPathEnv.append(c.trim());
-    }
-    classPathEnv.append(ApplicationConstants.CLASS_PATH_SEPARATOR).append(
-        "./log4j.properties");
-
-    // add the runtime classpath needed for tests to work
-    if (conf.getBoolean(YarnConfiguration.IS_MINI_YARN_CLUSTER, false)) {
-      classPathEnv.append(':');
-      classPathEnv.append(System.getProperty("java.class.path"));
-    }
-    env.put("CLASSPATH", classPathEnv.toString());
-
-    // Set the log4j properties if needed
-    if (!log4jPropFile.isEmpty()) {
-      addToLocalResources(fs, log4jPropFile, log4jPath, appId,
-          localResources, null);
-    }
-
-    amContainer.setEnvironment(env);
+    amContainer.setEnvironment(getAMEnvironment(localResources, fs, appId));
 
     // Set the necessary command to execute the application master
     Vector<CharSequence> vargs = new Vector<CharSequence>(30);
@@ -450,15 +365,10 @@ public class MyClient {
     vargs.add("--container_vcores " + String.valueOf(containerVirtualCores));
     vargs.add("--num_containers " + String.valueOf(numContainers));
     vargs.add("--priority " + String.valueOf(requestPriority));
-
-    if (debugFlag) {
-      vargs.add("--debug");
-    }
-
     vargs.add("1>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/AppMaster.stdout");
     vargs.add("2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/AppMaster.stderr");
 
-    // Get final commmand
+    // Get final command
     StringBuilder command = new StringBuilder();
     for (CharSequence str : vargs) {
       command.append(str).append(" ");
@@ -468,29 +378,6 @@ public class MyClient {
     List<String> commands = new ArrayList<String>();
     commands.add(command.toString());
     amContainer.setCommands(commands);
-
-    // Setup security tokens
-    if (UserGroupInformation.isSecurityEnabled()) {
-      Credentials credentials = new Credentials();
-      String tokenRenewer = conf.get(YarnConfiguration.RM_PRINCIPAL);
-      if (tokenRenewer == null || tokenRenewer.length() == 0) {
-        throw new IOException(
-            "Can't get Master Kerberos principal for the RM to use as renewer");
-      }
-
-      // For now, only getting tokens for the default file-system.
-      final Token<?> tokens[] =
-          fs.addDelegationTokens(tokenRenewer, credentials);
-      if (tokens != null) {
-        for (Token<?> token : tokens) {
-          LOG.info("Got dt for " + fs.getUri() + "; " + token);
-        }
-      }
-      DataOutputBuffer dob = new DataOutputBuffer();
-      credentials.writeTokenStorageToStream(dob);
-      ByteBuffer fsTokens = ByteBuffer.wrap(dob.getData(), 0, dob.getLength());
-      amContainer.setTokens(fsTokens);
-    }
 
     return amContainer;
   }
@@ -522,6 +409,40 @@ public class MyClient {
     localResources.put(fileDstPath, scRsrc);
   }
 
+  private Map<String, String> getAMEnvironment(Map<String, LocalResource> localResources, FileSystem fs, int appId
+                                               ) throws IOException{
+    Map<String, String> env = new HashMap<String, String>();
+
+    // Set ApplicationMaster jar file
+    LocalResource appJarResource = localResources.get(Constants.AM_JAR_NAME);
+    Path hdfsAppJarPath = new Path(fs.getHomeDirectory(), appJarResource.getResource().getFile());
+    FileStatus hdfsAppJarStatus = fs.getFileStatus(hdfsAppJarPath);
+    long hdfsAppJarLength = hdfsAppJarStatus.getLen();
+    long hdfsAppJarTimestamp = hdfsAppJarStatus.getModificationTime();
+
+    env.put(Constants.AM_JAR_PATH, hdfsAppJarPath.toString());
+    env.put(Constants.AM_JAR_TIMESTAMP, Long.toString(hdfsAppJarTimestamp));
+    env.put(Constants.AM_JAR_LENGTH, Long.toString(hdfsAppJarLength));
+
+    // Add AppMaster.jar location to classpath
+    // At some point we should not be required to add
+    // the hadoop specific classpaths to the env.
+    // It should be provided out of the box.
+    // For now setting all required classpaths including
+    // the classpath to "." for the application jar
+    StringBuilder classPathEnv = new StringBuilder(Environment.CLASSPATH.$$())
+        .append(ApplicationConstants.CLASS_PATH_SEPARATOR).append("./*");
+    for (String c : conf.getStrings(
+        YarnConfiguration.YARN_APPLICATION_CLASSPATH,
+        YarnConfiguration.DEFAULT_YARN_CROSS_PLATFORM_APPLICATION_CLASSPATH)) {
+      classPathEnv.append(ApplicationConstants.CLASS_PATH_SEPARATOR);
+      classPathEnv.append(c.trim());
+    }
+    env.put("CLASSPATH", classPathEnv.toString());
+
+    return env;
+  }
+
   /**
    * Monitor the submitted application for completion.
    * Kill application if time expires.
@@ -534,7 +455,6 @@ public class MyClient {
       throws YarnException, IOException {
 
     while (true) {
-
       // Check app status every 1 second.
       try {
         Thread.sleep(1000);
@@ -544,31 +464,18 @@ public class MyClient {
 
       // Get application report for the appId we are interested in
       ApplicationReport report = yarnClient.getApplicationReport(appId);
-
-      LOG.info("Got application report from ASM for"
-          + ", appId=" + appId.getId()
-          + ", clientToAMToken=" + report.getClientToAMToken()
-          + ", appDiagnostics=" + report.getDiagnostics()
-          + ", appMasterHost=" + report.getHost()
-          + ", appQueue=" + report.getQueue()
-          + ", appMasterRpcPort=" + report.getRpcPort()
-          + ", appStartTime=" + report.getStartTime()
-          + ", yarnAppState=" + report.getYarnApplicationState().toString()
-          + ", distributedFinalState=" + report.getFinalApplicationStatus().toString()
-          + ", appTrackingUrl=" + report.getTrackingUrl()
-          + ", appUser=" + report.getUser());
-
       YarnApplicationState state = report.getYarnApplicationState();
       FinalApplicationStatus dsStatus = report.getFinalApplicationStatus();
       if (YarnApplicationState.FINISHED == state) {
         if (FinalApplicationStatus.SUCCEEDED == dsStatus) {
-          LOG.info("Application has completed successfully. Breaking monitoring loop");
+          LOG.info("Application has completed successfully. "
+              + " Breaking monitoring loop : ApplicationId:" + appId.getId());
           return true;
         }
         else {
           LOG.info("Application did finished unsuccessfully."
               + " YarnState=" + state.toString() + ", DSFinalStatus=" + dsStatus.toString()
-              + ". Breaking monitoring loop");
+              + ". Breaking monitoring loop : ApplicationId:" + appId.getId());
           return false;
         }
       }
@@ -576,17 +483,17 @@ public class MyClient {
           || YarnApplicationState.FAILED == state) {
         LOG.info("Application did not finish."
             + " YarnState=" + state.toString() + ", DSFinalStatus=" + dsStatus.toString()
-            + ". Breaking monitoring loop");
+            + ". Breaking monitoring loop : ApplicationId:" + appId.getId());
         return false;
       }
 
       if (System.currentTimeMillis() > (clientStartTime + clientTimeout)) {
-        LOG.info("Reached client specified timeout for application. Killing application");
+        LOG.info("Reached client specified timeout for application. Killing application"
+            + ". Breaking monitoring loop : ApplicationId:" + appId.getId());
         forceKillApplication(appId);
         return false;
       }
     }
-
   }
 
   /**
@@ -598,6 +505,7 @@ public class MyClient {
   private void forceKillApplication(ApplicationId appId)
       throws YarnException, IOException {
     yarnClient.killApplication(appId);
+
   }
 
 
