@@ -257,7 +257,7 @@ public class MyApplicationMaster {
       appMasterJar.setType(LocalResourceType.FILE);
       Path jarPath = new Path(appJarPath);
       jarPath = FileSystem.get(conf).makeQualified(jarPath);
-      appMasterJar  .setResource(ConverterUtils.getYarnUrlFromPath(jarPath));
+       appMasterJar  .setResource(ConverterUtils.getYarnUrlFromPath(jarPath));
       appMasterJar.setTimestamp(appJarTimestamp);
       appMasterJar.setSize(appJarPathLen);
       appMasterJar.setVisibility(LocalResourceVisibility.PUBLIC);

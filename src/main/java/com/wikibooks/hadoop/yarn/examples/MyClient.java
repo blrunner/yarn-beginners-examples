@@ -28,10 +28,6 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
-import org.apache.hadoop.io.DataOutputBuffer;
-import org.apache.hadoop.security.Credentials;
-import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.yarn.api.ApplicationConstants;
 import org.apache.hadoop.yarn.api.ApplicationConstants.Environment;
 import org.apache.hadoop.yarn.api.protocolrecords.GetNewApplicationResponse;
@@ -44,7 +40,6 @@ import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.util.Records;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.*;
 
 /**
@@ -235,35 +230,6 @@ public class MyClient {
     LOG.info("Got Cluster metric info from ASM"
         + ", numNodeManagers=" + clusterMetrics.getNumNodeManagers());
 
-    List<NodeReport> clusterNodeReports = yarnClient.getNodeReports(
-        NodeState.RUNNING);
-
-    LOG.info("Got Cluster node info from ASM");
-    for (NodeReport node : clusterNodeReports) {
-      LOG.info("Got node report from ASM for"
-          + ", nodeId=" + node.getNodeId()
-          + ", nodeAddress" + node.getHttpAddress()
-          + ", nodeRackName" + node.getRackName()
-          + ", nodeNumContainers" + node.getNumContainers());
-    }
-
-    QueueInfo queueInfo = yarnClient.getQueueInfo(this.amQueue);
-    LOG.info("Queue info"
-        + ", queueName=" + queueInfo.getQueueName()
-        + ", queueCurrentCapacity=" + queueInfo.getCurrentCapacity()
-        + ", queueMaxCapacity=" + queueInfo.getMaximumCapacity()
-        + ", queueApplicationCount=" + queueInfo.getApplications().size()
-        + ", queueChildQueueCount=" + queueInfo.getChildQueues().size());
-
-    List<QueueUserACLInfo> listAclInfo = yarnClient.getQueueAclsInfo();
-    for (QueueUserACLInfo aclInfo : listAclInfo) {
-      for (QueueACL userAcl : aclInfo.getUserAcls()) {
-        LOG.info("User ACL Info for Queue"
-            + ", queueName=" + aclInfo.getQueueName()
-            + ", userAcl=" + userAcl.name());
-      }
-    }
-
     // Get a new application id
     YarnClientApplication app = yarnClient.createApplication();
     GetNewApplicationResponse appResponse = app.getNewApplicationResponse();
@@ -348,7 +314,7 @@ public class MyClient {
 
     // Set the env variables to be setup in the env where the application master will be run
     LOG.info("Set the environment for the application master");
-    amContainer.setEnvironment(getAMEnvironment(localResources, fs, appId));
+    amContainer.setEnvironment(getAMEnvironment(localResources, fs));
 
     // Set the necessary command to execute the application master
     Vector<CharSequence> vargs = new Vector<CharSequence>(30);
@@ -409,8 +375,8 @@ public class MyClient {
     localResources.put(fileDstPath, scRsrc);
   }
 
-  private Map<String, String> getAMEnvironment(Map<String, LocalResource> localResources, FileSystem fs, int appId
-                                               ) throws IOException{
+  private Map<String, String> getAMEnvironment(Map<String, LocalResource> localResources
+      , FileSystem fs) throws IOException{
     Map<String, String> env = new HashMap<String, String>();
 
     // Set ApplicationMaster jar file
