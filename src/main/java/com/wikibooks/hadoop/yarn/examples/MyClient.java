@@ -226,10 +226,6 @@ public class MyClient {
     LOG.info("Running Client");
     yarnClient.start();
 
-    YarnClusterMetrics clusterMetrics = yarnClient.getYarnClusterMetrics();
-    LOG.info("Got Cluster metric info from ASM"
-        + ", numNodeManagers=" + clusterMetrics.getNumNodeManagers());
-
     // Get a new application id
     YarnClientApplication app = yarnClient.createApplication();
     GetNewApplicationResponse appResponse = app.getNewApplicationResponse();

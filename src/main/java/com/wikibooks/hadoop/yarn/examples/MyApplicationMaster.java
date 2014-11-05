@@ -180,16 +180,28 @@ public class MyApplicationMaster {
     amRMClient.init(conf);
     amRMClient.start();
 
-    NMClient nmClient = NMClient.createNMClient();
-    nmClient.init(conf);
-    nmClient.start();
-
     // Register with ResourceManager
     amRMClient.registerApplicationMaster("", 0, "");
+
+    // Set up resource type requirements for Container
+    Resource capability = Records.newRecord(Resource.class);
+    capability.setMemory(containerMemory);
+    capability.setVirtualCores(containerVirtualCores);
 
     // Priority for worker containers - priorities are intra-application
     Priority priority = Records.newRecord(Priority.class);
     priority.setPriority(requestPriority);
+
+    // Make container requests to ResourceManager
+    for (int i = 0; i < numTotalContainers; ++i) {
+      ContainerRequest containerAsk = new ContainerRequest(capability, null, null, priority);
+      amRMClient.addContainerRequest(containerAsk);
+    }
+
+
+    NMClient nmClient = NMClient.createNMClient();
+    nmClient.init(conf);
+    nmClient.start();
 
     // Setup CLASSPATH for Container
     Map<String, String> containerEnv = new HashMap<String, String>();
@@ -197,17 +209,6 @@ public class MyApplicationMaster {
 
     // Setup ApplicationMaster jar file for Container
     LocalResource appMasterJar = createAppMasterJar();
-
-    // Set up resource type requirements for Container
-    Resource capability = Records.newRecord(Resource.class);
-    capability.setMemory(containerMemory);
-    capability.setVirtualCores(containerVirtualCores);
-
-    // Make container requests to ResourceManager
-    for (int i = 0; i < numTotalContainers; ++i) {
-      ContainerRequest containerAsk = new ContainerRequest(capability, null, null, priority);
-      amRMClient.addContainerRequest(containerAsk);
-    }
 
     // Obtain allocated containers and launch
     int allocatedContainers = 0;
